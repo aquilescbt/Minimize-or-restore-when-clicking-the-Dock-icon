@@ -169,8 +169,13 @@ local function handleFinder()
         return true
     end
 
-    -- Tem janelas visíveis → minimizar
-    minimizeApp(finder)
+    -- Tem janelas visíveis → só minimiza se já estiver em foco, senão traz para a frente
+    local frontApp = hs.application.frontmostApplication()
+    if frontApp and frontApp:bundleID() == finder:bundleID() then
+        minimizeApp(finder)
+    else
+        finder:activate()
+    end
     return true
 end
 
@@ -203,8 +208,13 @@ local function handleApp(app)
         return true
     end
 
-    -- Tem janelas visíveis → minimizar
-    minimizeApp(app)
+    -- Tem janelas visíveis → só minimiza se já estiver em foco, senão traz para a frente
+    local frontApp = hs.application.frontmostApplication()
+    if frontApp and frontApp:bundleID() == app:bundleID() then
+        minimizeApp(app)
+    else
+        app:activate()
+    end
     return true
 end
 
@@ -227,7 +237,12 @@ local function handleHideOnlyApp(app)
     end
 
     if hasVisible then
-        minimizeApp(app)
+        local frontApp = hs.application.frontmostApplication()
+        if frontApp and frontApp:bundleID() == app:bundleID() then
+            minimizeApp(app)
+        else
+            app:activate()
+        end
         return true
     elseif lastMinimized then
         local lifoWin = getLastMinimizedWindow(app)
@@ -325,4 +340,3 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
 
     return handleApp(clickedApp)
 end):start()
-
