@@ -5,11 +5,16 @@
 -- ============================================================
 
 local menuIsOpen = false
-
--- Variáveis para deteção de arrastar (outras apps)
 local dragThreshold = 5
 local clickStart = nil
 local wasDragged = false
+
+-- Apps que precisam de tirar foco antes de minimizar
+local focusFixApps = {
+    ["System Settings"] = true,
+    ["Definições do Sistema"] = true,
+    ["System Preferences"] = true,
+}
 
 local function getDockItemTitle(pos)
     local element = hs.axuielement.systemWideElement():elementAtPosition(pos.x, pos.y)
@@ -86,13 +91,10 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
     local title = getDockItemTitle(pos)
     if not title then return false end
 
-    -- ========== FINDER ==========
     if title == "Finder" then
         local finder = hs.application.get("Finder")
         if not finder then return false end
-        
         if not hasVisibleWindows(finder) then return false end
-        
         local frontApp = hs.application.frontmostApplication()
         if frontApp and frontApp:bundleID() == finder:bundleID() then
             local win = getFirstVisibleWindow(finder)
@@ -104,7 +106,6 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
         return false
     end
 
-    -- ========== OUTRAS APPS ==========
     local clickedApp = nil
     for _, a in ipairs(hs.application.runningApplications()) do
         if a:name() == title then
@@ -122,7 +123,9 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
             clickStart = {
                 x = pos.x,
                 y = pos.y,
-                window = win
+                window = win,
+                appName = title,
+                needsFocusFix = focusFixApps[title] or false
             }
         end
     end
@@ -148,7 +151,19 @@ dockMouseUpWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseUp}, func
     if not clickStart then return false end
 
     if not wasDragged then
-        clickStart.window:minimize()
+        local win = clickStart.window
+        
+        if clickStart.needsFocusFix then
+            local finder = hs.application.get("Finder")
+            if finder then
+                finder:activate()
+            end
+            hs.timer.doAfter(0.05, function()
+                win:minimize()
+            end)
+        else
+            win:minimize()
+        end
     end
 
     clickStart = nil
