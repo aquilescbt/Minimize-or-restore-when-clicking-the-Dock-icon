@@ -9,13 +9,6 @@ local dragThreshold = 5
 local clickStart = nil
 local wasDragged = false
 
--- Apps que precisam de tirar foco antes de minimizar
-local focusFixApps = {
-    ["System Settings"] = true,
-    ["Definições do Sistema"] = true,
-    ["System Preferences"] = true,
-}
-
 local function getDockItemTitle(pos)
     local element = hs.axuielement.systemWideElement():elementAtPosition(pos.x, pos.y)
     if element then
@@ -123,9 +116,7 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
             clickStart = {
                 x = pos.x,
                 y = pos.y,
-                window = win,
-                appName = title,
-                needsFocusFix = focusFixApps[title] or false
+                window = win
             }
         end
     end
@@ -153,17 +144,14 @@ dockMouseUpWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseUp}, func
     if not wasDragged then
         local win = clickStart.window
         
-        if clickStart.needsFocusFix then
-            local finder = hs.application.get("Finder")
-            if finder then
-                finder:activate()
-            end
-            hs.timer.doAfter(0.05, function()
-                win:minimize()
-            end)
-        else
-            win:minimize()
+        -- Tirar foco antes de minimizar (todas as apps)
+        local finder = hs.application.get("Finder")
+        if finder then
+            finder:activate()
         end
+        hs.timer.doAfter(0.05, function()
+            win:minimize()
+        end)
     end
 
     clickStart = nil
