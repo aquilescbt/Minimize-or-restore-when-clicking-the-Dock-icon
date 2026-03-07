@@ -1,9 +1,15 @@
 -- ============================================================
 -- Minimizar ao clicar no ícone da Dock (só quando app está em foco)
--- Option (⌥) + arrastar = move ícone na Dock normalmente
+-- Finder: minimiza imediatamente (sem arrastar)
+-- Outras apps: deteta arrastar vs clique (estilo Linux)
 -- ============================================================
 
 local menuIsOpen = false
+
+-- Variáveis para deteção de arrastar (outras apps)
+local dragThreshold = 5
+local clickStart = nil
+local wasDragged = false
 
 local function getDockItemTitle(pos)
     local element = hs.axuielement.systemWideElement():elementAtPosition(pos.x, pos.y)
@@ -46,6 +52,15 @@ local function getFirstVisibleWindow(app)
     return nil
 end
 
+local function hasVisibleWindows(app)
+    for _, win in ipairs(app:allWindows()) do
+        if not win:isMinimized() and win:isVisible() and win:title() ~= "" then
+            return true
+        end
+    end
+    return false
+end
+
 dockRightClickWatcher = hs.eventtap.new({hs.eventtap.event.types.rightMouseDown}, function(event)
     local pos = hs.mouse.absolutePosition()
     local screen = hs.screen.mainScreen():frame()
@@ -56,9 +71,9 @@ dockRightClickWatcher = hs.eventtap.new({hs.eventtap.event.types.rightMouseDown}
 end):start()
 
 dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, function(event)
-    local flags = event:getFlags()
-    if flags.alt then return false end
-
+    clickStart = nil
+    wasDragged = false
+    
     if menuIsOpen then
         menuIsOpen = false
         return false
@@ -71,6 +86,25 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
     local title = getDockItemTitle(pos)
     if not title then return false end
 
+    -- ========== FINDER ==========
+    if title == "Finder" then
+        local finder = hs.application.get("Finder")
+        if not finder then return false end
+        
+        if not hasVisibleWindows(finder) then return false end
+        
+        local frontApp = hs.application.frontmostApplication()
+        if frontApp and frontApp:bundleID() == finder:bundleID() then
+            local win = getFirstVisibleWindow(finder)
+            if win then
+                win:minimize()
+                return true
+            end
+        end
+        return false
+    end
+
+    -- ========== OUTRAS APPS ==========
     local clickedApp = nil
     for _, a in ipairs(hs.application.runningApplications()) do
         if a:name() == title then
@@ -85,10 +119,39 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
     if frontApp and frontApp:bundleID() == clickedApp:bundleID() then
         local win = getFirstVisibleWindow(clickedApp)
         if win then
-            win:minimize()
-            return true
+            clickStart = {
+                x = pos.x,
+                y = pos.y,
+                window = win
+            }
         end
     end
 
+    return false
+end):start()
+
+dockDragWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDragged}, function(event)
+    if not clickStart then return false end
+    
+    local pos = hs.mouse.absolutePosition()
+    local dx = math.abs(pos.x - clickStart.x)
+    local dy = math.abs(pos.y - clickStart.y)
+    
+    if dx >= dragThreshold or dy >= dragThreshold then
+        wasDragged = true
+    end
+    
+    return false
+end):start()
+
+dockMouseUpWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseUp}, function(event)
+    if not clickStart then return false end
+
+    if not wasDragged then
+        clickStart.window:minimize()
+    end
+
+    clickStart = nil
+    wasDragged = false
     return false
 end):start()
