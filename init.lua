@@ -14,7 +14,6 @@ local function getDockItemTitle(pos)
             return title
         end
     end
-    -- Fallback: percorrer os filhos da Dock manualmente
     local dock = hs.axuielement.applicationElement(hs.application.get("Dock"))
     if dock then
         for _, child in ipairs(dock:attributeValue("AXChildren") or {}) do
@@ -39,7 +38,6 @@ local function getFirstVisibleWindow(app)
             return win
         end
     end
-    -- Fallback para apps sem título (PWAs, etc.)
     for _, win in ipairs(app:allWindows()) do
         if not win:isMinimized() and win:isVisible() then
             return win
@@ -48,16 +46,6 @@ local function getFirstVisibleWindow(app)
     return nil
 end
 
-local function hasVisibleWindows(app)
-    for _, win in ipairs(app:allWindows()) do
-        if not win:isMinimized() and win:isVisible() and win:title() ~= "" then
-            return true
-        end
-    end
-    return false
-end
-
--- Detecta clique direito para saber quando menu está aberto
 dockRightClickWatcher = hs.eventtap.new({hs.eventtap.event.types.rightMouseDown}, function(event)
     local pos = hs.mouse.absolutePosition()
     local screen = hs.screen.mainScreen():frame()
@@ -67,7 +55,6 @@ dockRightClickWatcher = hs.eventtap.new({hs.eventtap.event.types.rightMouseDown}
     return false
 end):start()
 
--- Clique esquerdo na Dock
 dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, function(event)
     local flags = event:getFlags()
     if flags.alt then return false end
@@ -84,7 +71,6 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
     local title = getDockItemTitle(pos)
     if not title then return false end
 
-    -- Procura a app pelo nome
     local clickedApp = nil
     for _, a in ipairs(hs.application.runningApplications()) do
         if a:name() == title then
@@ -93,27 +79,16 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
         end
     end
     
-    -- App não está a correr → deixa o macOS abrir
     if not clickedApp then return false end
 
-    -- Verifica se a app clicada é a que está em foco
     local frontApp = hs.application.frontmostApplication()
-    local isInFocus = frontApp and frontApp:bundleID() == clickedApp:bundleID()
-    
-    -- Caso especial: Finder sem janelas visíveis → deixa o macOS restaurar/abrir
-    if title == "Finder" and not hasVisibleWindows(clickedApp) then
-        return false
-    end
-    
-    if isInFocus then
-        -- App em foco → minimizar a janela visível
+    if frontApp and frontApp:bundleID() == clickedApp:bundleID() then
         local win = getFirstVisibleWindow(clickedApp)
         if win then
             win:minimize()
-            return true  -- Consumir o clique
+            return true
         end
     end
 
-    -- App não está em foco → deixa o macOS trazer à frente
     return false
 end):start()
