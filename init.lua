@@ -59,6 +59,25 @@ local function hasVisibleWindows(app)
     return false
 end
 
+local function findAppByTitle(title)
+    -- Primeiro tenta correspondência exata
+    for _, a in ipairs(hs.application.runningApplications()) do
+        if a:name() == title then
+            return a
+        end
+    end
+    -- Depois tenta encontrar se o nome da app contém o título ou vice-versa
+    for _, a in ipairs(hs.application.runningApplications()) do
+        local appName = a:name()
+        if appName and appName ~= "" then
+            if string.find(appName, title, 1, true) or string.find(title, appName, 1, true) then
+                return a
+            end
+        end
+    end
+    return nil
+end
+
 dockRightClickWatcher = hs.eventtap.new({hs.eventtap.event.types.rightMouseDown}, function(event)
     local pos = hs.mouse.absolutePosition()
     local screen = hs.screen.mainScreen():frame()
@@ -99,13 +118,7 @@ dockClickWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseDown}, func
         return false
     end
 
-    local clickedApp = nil
-    for _, a in ipairs(hs.application.runningApplications()) do
-        if a:name() == title then
-            clickedApp = a
-            break
-        end
-    end
+    local clickedApp = findAppByTitle(title)
     
     if not clickedApp then return false end
 
@@ -144,7 +157,6 @@ dockMouseUpWatcher = hs.eventtap.new({hs.eventtap.event.types.leftMouseUp}, func
     if not wasDragged then
         local win = clickStart.window
         
-        -- Tirar foco antes de minimizar (todas as apps)
         local finder = hs.application.get("Finder")
         if finder then
             finder:activate()
